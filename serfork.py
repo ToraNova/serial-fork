@@ -78,7 +78,7 @@ class SerialFork:
                 return
             self.phy  = serial.Serial(self.phyname,  baudrate = baud, timeout = timeout[0])
             self.pty0 = serial.Serial(self.pty0name, baudrate = baud, timeout = timeout[1])
-            self.pty1 = serial.Serial(self.pty0name, baudrate = baud, timeout = timeout[2])
+            self.pty1 = serial.Serial(self.pty1name, baudrate = baud, timeout = timeout[2])
             self.us = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
             if uplinkaddr is None:
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     parser.add_argument("-p0", "--pty0name", help="user specified name for pty0", default="/tmp/serfork0")
     parser.add_argument("-p1", "--pty1name", help="user specified name for pty1", default="/tmp/serfork1")
     parser.add_argument("-ua", "--uplinkaddr", help="uplink udp address (for downlink device use)")
-    parser.add_argument("-up", "--uplinkport", help="uplink udp port (for downlink device use)")
+    parser.add_argument("-up", "--uplinkport", help="uplink udp port (for downlink device use)", default=21221)
     parser.add_argument("-sa", "--saddr", help="udp server address (for uplink device use)", default='0.0.0.0')
     parser.add_argument("-sp", "--sport", help="udp server port (for uplink device use)",default=21221)
 
