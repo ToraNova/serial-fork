@@ -113,7 +113,7 @@ class SerialFork:
             self.start_forward()
             p = subprocess.Popen([
                 '/usr/bin/pppd', 'nodetach', 'noauth', 'local',
-                '%s:%s' % (srcaddr, destaddr), self.phyname, str(self.baud),
+                '%s:%s' % (srcaddr, destaddr), self.pty0name, str(self.baud),
             ], stdout=subprocess.PIPE, universal_newlines=True)
             for line in iter(p.stdout.readline, ""):
                 print(line, end="")
