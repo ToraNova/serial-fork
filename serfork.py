@@ -15,7 +15,9 @@ class SerialFork:
                     buf = src.read(src.in_waiting)
                     dest_sock.sendto(buf, dest_addr)
                     if self.debug:
-                        print("%s -> %s (%d):" %(src.port, dest_addr, len(msg))) #debugging
+                        print("%s -> %s (%d):" %(src.port, dest_addr, len(buf)), buf) #debugging
+                else:
+                    time.sleep(0.001) # slowdown if no message
         except Exception as e:
             print("udp xmit error:",e)
 
@@ -23,10 +25,10 @@ class SerialFork:
         '''src is a udp socket, and dest is a serialport. udp rx is sent to serial tx'''
         try:
             while True:
-                msg, addr = src_sock.recvfrom(1024)
+                msg, addr = src_sock.recvfrom(self.rwbufsz)
                 dest.write(msg)
                 if self.debug:
-                    print("%s -> %s (%d):" %(addr, dest.port, len(msg)), buf) #debugging
+                    print("%s -> %s (%d):" %(addr, dest.port, len(msg)), msg) #debugging
         except Exception as e:
             print("udp recv error:", e)
 
@@ -39,7 +41,9 @@ class SerialFork:
                     buf = src.read(src.in_waiting)
                     dest.write(buf) #forward
                     if self.debug:
-                        print("%s -> %s (%d):" %(src.port, dest.port, len(msg)),buf) #debugging
+                        print("%s -> %s (%d):" %(src.port, dest.port, len(buf)) ,buf) #debugging
+                else:
+                    time.sleep(0.001) # slowdown if no message
         except Exception as e:
             print("serial forward error:",e)
 
@@ -57,21 +61,22 @@ class SerialFork:
         for f in self.forwarding:
             f.join(1.0)
 
-    def __init__(self, phy, uplinkaddr=None, name0 = '/tmp/serfork0', name1 = '/tmp/serfork1',\
-            baud=115200, udphostaddr=('0.0.0.0', 21221), timeout = [0,0,0], debug=False):
+    def __init__(self, phy, uplink=True, udpaddr=('0.0.0.0', 21221), name0 = '/tmp/serfork0', name1 = '/tmp/serfork1',\
+            baud=115200, debug=False, rwbufsize=1024, timeout = [None, None, None]):
         '''creates the virtual pts using socat'''
         self.phyname = phy
         self.pty0name = name0
         self.pty1name = name1
         self.forwarding = []
         self.debug = debug
+        self.rwbufsz = rwbufsize
         try:
             self.proc = subprocess.Popen([
                 '/usr/bin/socat',
                 'pty,rawer,link=%s' % self.pty0name,
                 'pty,rawer,link=%s' % self.pty1name
             ], stderr=subprocess.PIPE)
-            time.sleep(1)
+            time.sleep(1) # wait for pts to be created
             if self.proc.poll() is not None:
                 out, err = self.proc.communicate(timeout=3)
                 print("fatal error has occurred: %s" % err)
@@ -81,18 +86,21 @@ class SerialFork:
             self.pty1 = serial.Serial(self.pty1name, baudrate = baud, timeout = timeout[2])
             self.us = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
-            if uplinkaddr is None:
-                self.us.bind(udphostaddr)
+            if uplink:
+                if self.debug:
+                    print("starting uplink device with udp service %s." % str(udpaddr))
+                self.us.bind(udpaddr)
                 # link pty1     rx - tx physical
                 self.configure_forward(self.serial_forward, (self.pty1, self.phy) )
                 # link udp serv rx - tx pty1
                 self.configure_forward(self.udp_receive, (self.us, self.pty1))
             else:
-                self.uladdr = uplinkaddr
+                if self.debug:
+                    print("starting downlink device to udp service %s." % str(udpaddr))
                 # link physical rx - tx pty1
                 self.configure_forward(self.serial_forward, (self.phy, self.pty1) )
                 # link pty1     rx - tx udp client
-                self.configure_forward(self.udp_transmit, (self.pty1, self.us, self.uladdr))
+                self.configure_forward(self.udp_transmit, (self.pty1, self.us, udpaddr))
 
         except subprocess.TimeoutExpired:
             print("socat process timed out")
@@ -113,12 +121,11 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--debug", help="enable debugging mode (might affect performance)", action="store_true")
     parser.add_argument("-p0", "--pty0name", help="user specified name for pty0", default="/tmp/serfork0")
     parser.add_argument("-p1", "--pty1name", help="user specified name for pty1", default="/tmp/serfork1")
-    parser.add_argument("-ua", "--uplinkaddr", help="uplink udp address (for downlink device use)")
-    parser.add_argument("-up", "--uplinkport", help="uplink udp port (for downlink device use)", default=21221)
-    parser.add_argument("-sa", "--saddr", help="udp server address (for uplink device use)", default='0.0.0.0')
-    parser.add_argument("-sp", "--sport", help="udp server port (for uplink device use)",default=21221)
+    parser.add_argument("-u", "--uplink", help="specify if this device is uplink. uplink is the udp server", action="store_true")
+    parser.add_argument("-a", "--uaddr", help="uplink udp address (please specify if device is downlink)", default="0.0.0.0")
+    parser.add_argument("-p", "--uport", help="uplink udp port", default=21221)
 
     args = parser.parse_args()
-    sf = SerialFork(args.physical, (args.uplinkaddr, args.uplinkport), args.pty0name, args.pty1name, args.baudrate, udphostaddr = (args.saddr, args.sport), debug=args.debug)
+    sf = SerialFork(args.physical, args.uplink, (args.uaddr, args.uport), args.pty0name, args.pty1name, args.baudrate, args.debug)
     sf.run_until_interrupt()
     #TODO: /tmp/serfork0 cannot be stat?
