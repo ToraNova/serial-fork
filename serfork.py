@@ -2,7 +2,7 @@
 # used for uni-directionaly serial + udp link for pppd-pppd communication
 # github.com/toranova
 # mailto:chia_jason96@live.com
-import serial, subprocess, threading, time, socket, argparse
+import serial, subprocess, threading, time, socket, argparse, os
 
 class SerialFork:
 
@@ -61,31 +61,31 @@ class SerialFork:
         for f in self.forwarding:
             f.join(1.0)
 
-    def __init__(self, phy, uplink=True, udpaddr=('0.0.0.0', 21221), name0 = '/tmp/serfork0', name1 = '/tmp/serfork1',\
-            baud=115200, debug=False, rwbufsize=1024, timeout = [None, None, None]):
+    def __init__(self, phy, uplink=True, udpaddr=('0.0.0.0', 21221), baud=115200, debug=False, rwbufsize=1024, timeout = [None, None, None]):
         '''creates the virtual pts using socat'''
         self.phyname = phy
-        self.pty0name = name0
-        self.pty1name = name1
         self.forwarding = []
         self.debug = debug
         self.rwbufsz = rwbufsize
+        self.fatal = False
+        self.pty0name = '/tmp/serfork0'
+        self.pty1name = '/tmp/serfork1'
+        self.baud = baud
         try:
             self.proc = subprocess.Popen([
                 '/usr/bin/socat',
                 'pty,rawer,link=%s' % self.pty0name,
-                'pty,rawer,link=%s' % self.pty1name
+                'pty,rawer,link=%s' % self.pty1name,
             ], stderr=subprocess.PIPE)
             time.sleep(1) # wait for pts to be created
-            if self.proc.poll() is not None:
-                out, err = self.proc.communicate(timeout=3)
-                print("fatal error has occurred: %s" % err)
-                return
-            self.phy  = serial.Serial(self.phyname,  baudrate = baud, timeout = timeout[0])
-            self.pty0 = serial.Serial(self.pty0name, baudrate = baud, timeout = timeout[1])
-            self.pty1 = serial.Serial(self.pty1name, baudrate = baud, timeout = timeout[2])
+            rc = self.proc.poll()
+            if rc is not None:
+                out, err = self.proc.communicate()
+                raise Exception(err)
+            self.phy  = serial.Serial(self.phyname,  baudrate = self.baud, timeout = timeout[0])
+            self.pty0 = serial.Serial(self.pty0name, baudrate = self.baud, timeout = timeout[1])
+            self.pty1 = serial.Serial(self.pty1name, baudrate = self.baud, timeout = timeout[2])
             self.us = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
             if uplink:
                 if self.debug:
                     print("starting uplink device with udp service %s." % str(udpaddr))
@@ -102,30 +102,38 @@ class SerialFork:
                 # link pty1     rx - tx udp client
                 self.configure_forward(self.udp_transmit, (self.pty1, self.us, udpaddr))
 
-        except subprocess.TimeoutExpired:
-            print("socat process timed out")
+        except Exception as e:
+            print("setup exception has occurred:",e)
+            self.fatal = True
 
-    def run_until_interrupt(self):
+    def run_until_interrupt(self, srcaddr, destaddr):
+        if self.fatal:
+            raise Exception("setup exception was fatal.")
         try:
             self.start_forward()
-            while True:
-                time.sleep(1)
+            p = subprocess.Popen([
+                '/usr/bin/pppd', 'nodetach', 'noauth', 'local',
+                '%s:%s' % (srcaddr, destaddr), self.phyname, str(self.baud),
+            ], stdout=subprocess.PIPE, universal_newlines=True)
+            for line in iter(p.stdout.readline, ""):
+                print(line)
         except KeyboardInterrupt:
             self.stop_forward()
+            p.stdout.close()
 
 if __name__ == "__main__":
+    # this script should be run as root
 
     parser = argparse.ArgumentParser()
     parser.add_argument("physical", help="the physical serial port to switch")
     parser.add_argument("-b", "--baudrate", help="the baud rate for all serial device", type=int, default=115200)
     parser.add_argument("-d", "--debug", help="enable debugging mode (might affect performance)", action="store_true")
-    parser.add_argument("-p0", "--pty0name", help="user specified name for pty0", default="/tmp/serfork0")
-    parser.add_argument("-p1", "--pty1name", help="user specified name for pty1", default="/tmp/serfork1")
     parser.add_argument("-u", "--uplink", help="specify if this device is uplink. uplink is the udp server", action="store_true")
     parser.add_argument("-a", "--uaddr", help="uplink udp address (please specify if device is downlink)", default="0.0.0.0")
     parser.add_argument("-p", "--uport", help="uplink udp port", default=21221)
+    parser.add_argument("ppp_src", help="serial link src address for PPPoS")
+    parser.add_argument("ppp_dest", help="serial link dest address for PPPoS")
 
     args = parser.parse_args()
-    sf = SerialFork(args.physical, args.uplink, (args.uaddr, args.uport), args.pty0name, args.pty1name, args.baudrate, args.debug)
-    sf.run_until_interrupt()
-    #TODO: /tmp/serfork0 cannot be stat?
+    sf = SerialFork(args.physical, args.uplink, (args.uaddr, args.uport), args.baudrate, args.debug)
+    sf.run_until_interrupt(args.ppp_src, args.ppp_dest)
