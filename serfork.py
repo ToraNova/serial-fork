@@ -116,7 +116,7 @@ class SerialFork:
                 '%s:%s' % (srcaddr, destaddr), self.phyname, str(self.baud),
             ], stdout=subprocess.PIPE, universal_newlines=True)
             for line in iter(p.stdout.readline, ""):
-                print(line)
+                print(line, end="")
         except KeyboardInterrupt:
             self.stop_forward()
             p.stdout.close()
