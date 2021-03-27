@@ -15,7 +15,7 @@ class SerialFork:
                     buf = src.read(src.in_waiting)
                     dest_sock.sendto(buf, dest_addr)
                     if self.debug:
-                        print("%s -> %s :" %(src.port, dest_addr)) #debugging
+                        print("%s -> %s (%d):" %(src.port, dest_addr, len(msg))) #debugging
         except Exception as e:
             print("udp xmit error:",e)
 
@@ -26,7 +26,7 @@ class SerialFork:
                 msg, addr = src_sock.recvfrom(1024)
                 dest.write(msg)
                 if self.debug:
-                    print("%s -> %s :" %(addr, dest.port),buf) #debugging
+                    print("%s -> %s (%d):" %(addr, dest.port, len(msg)), buf) #debugging
         except Exception as e:
             print("udp recv error:", e)
 
@@ -39,7 +39,7 @@ class SerialFork:
                     buf = src.read(src.in_waiting)
                     dest.write(buf) #forward
                     if self.debug:
-                        print("%s -> %s :" %(src.port, dest.port),buf) #debugging
+                        print("%s -> %s (%d):" %(src.port, dest.port, len(msg)),buf) #debugging
         except Exception as e:
             print("serial forward error:",e)
 
@@ -68,8 +68,8 @@ class SerialFork:
         try:
             self.proc = subprocess.Popen([
                 '/usr/bin/socat',
-                'pty,raw,echo=0,link=%s' % self.pty0name,
-                'pty,raw,echo=0,link=%s' % self.pty1name
+                'pty,rawer,link=%s' % self.pty0name,
+                'pty,rawer,link=%s' % self.pty1name
             ], stderr=subprocess.PIPE)
             time.sleep(1)
             if self.proc.poll() is not None:
@@ -121,3 +121,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     sf = SerialFork(args.physical, (args.uplinkaddr, args.uplinkport), args.pty0name, args.pty1name, args.baudrate, udphostaddr = (args.saddr, args.sport), debug=args.debug)
     sf.run_until_interrupt()
+    #TODO: /tmp/serfork0 cannot be stat?
