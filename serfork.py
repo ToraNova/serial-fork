@@ -98,16 +98,14 @@ class SerialFork:
             self.pty1 = serial.Serial(self.pty1name, baudrate = self.baud, timeout = timeout[2])
             self.us = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
             if self.uplink:
-                if self.debug:
-                    print("starting uplink device with udp service %s." % str(udpaddr))
+                print("starting uplink device with udp service %s." % str(udpaddr))
                 self.us.bind(udpaddr)
                 # link pty1     rx - tx physical
                 self.configure_forward(self.serial_forward, (self.pty1, self.phy) )
                 # link udp serv rx - tx pty1
                 self.configure_forward(self.udp_receive, (self.us, self.pty1))
             else:
-                if self.debug:
-                    print("starting downlink device to udp service %s." % str(udpaddr))
+                print("starting downlink device to udp service %s." % str(udpaddr))
                 # link physical rx - tx pty1
                 self.configure_forward(self.serial_forward, (self.phy, self.pty1) )
                 # link pty1     rx - tx udp client
