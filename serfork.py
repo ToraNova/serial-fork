@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("physical", help="the physical serial port to switch")
-    parser.add_argument("-b", "--baudrate", help="the baud rate for all serial device", type=int, default=115200)
+    parser.add_argument("-b", "--baudrate", help="the baud rate for all serial device", type=int, default=1152000)
     parser.add_argument("-i", "--interface", help="configure firewall for interface to share(downlink)/receive(uplink) internet")
     parser.add_argument("-d", "--debug", help="enable debugging mode (might affect performance)", action="store_true")
     parser.add_argument("-u", "--uplink", help="specify if this device is uplink. uplink is the udp server", action="store_true")
