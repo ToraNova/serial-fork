@@ -71,7 +71,7 @@ class SerialFork:
         for f in self.forwarding:
             f.join(1.0)
 
-    def __init__(self, phy, uplink=True, udpaddr=('0.0.0.0', 21221), baud=115200, debug=False, rwbufsize=1024, timeout = [None, None, None]):
+    def __init__(self, phy, uplink=True, udpaddr=('0.0.0.0', 21221), baud=115200, debug=False, rwbufsize=4096, timeout = [None, None, None]):
         '''creates the virtual pts using socat'''
         self.phyname = phy
         self.forwarding = []
@@ -101,13 +101,13 @@ class SerialFork:
                 print("starting uplink device with udp service %s." % str(udpaddr))
                 self.us.bind(udpaddr)
                 # link pty1     rx - tx physical
-                self.configure_forward(self.serial_forward, (self.pty1, self.phy) )
+                self.configure_forward(self.serial_forward, (self.pty1, self.phy))
                 # link udp serv rx - tx pty1
                 self.configure_forward(self.udp_receive, (self.us, self.pty1))
             else:
                 print("starting downlink device to udp service %s." % str(udpaddr))
                 # link physical rx - tx pty1
-                self.configure_forward(self.serial_forward, (self.phy, self.pty1) )
+                self.configure_forward(self.serial_forward, (self.phy, self.pty1))
                 # link pty1     rx - tx udp client
                 self.configure_forward(self.udp_transmit, (self.pty1, self.us, udpaddr))
 
