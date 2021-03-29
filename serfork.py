@@ -8,9 +8,9 @@ def make_ipmasq_cmd(intif, lanif):
     return [
             ['/usr/bin/sysctl','net.ipv4.ip_forward=1'],
             ['/usr/bin/iptables','-F'], # flush all entries
-            ['/usr/bin/iptables','-X'], # delete all chains
+            ['/usr/bin/iptables','-t','nat','-F'], # flush all entries in the NAT
             ['/usr/bin/iptables','-t','nat','-A','POSTROUTING','-o',intif,'-j','MASQUERADE'],
-            ['/usr/bin/iptables','-A','FORWARD','-m','conntrack','--cstate','RELATED,ESTABLISHED','-j','ACCEPT'],
+            ['/usr/bin/iptables','-A','FORWARD','-m','conntrack','--ctstate','RELATED,ESTABLISHED','-j','ACCEPT'],
             ['/usr/bin/iptables','-A','FORWARD','-i',lanif,'-o',intif,'-j','ACCEPT'],
     ]
 
@@ -126,13 +126,16 @@ class SerialFork:
             ], stdout=subprocess.PIPE, universal_newlines=True)
 
             if iface is not None:
-                # configure firewall
+                # configure firewall (assume downlink device)
+                isrc = 'ppp0'
+                idst = iface
                 if self.uplink: # uplink means iface is wlan0 or eth0, allow ppp0 to have internet
-                    iptab = make_ipmasq_cmd(iface, 'ppp0')
-                else: # downlink, share internet obtained from ppp0 through usb0 or some interface
-                    iptab = make_ipmasq_cmd('ppp0', iface)
+                    isrc = iface
+                    idst = 'ppp0'
+                iptab = make_ipmasq_cmd(isrc, idst)
+                print("configuring firewall internet sharing rules %s -> %s" %(isrc,idst))
                 for cmd in iptab:
-                    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr, subprocess.PIPE)
+                    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     out,err = p.communicate()
                     if p.returncode: # error
                         raise Exception("firewall exception was fatal. (%d) %s"%(p.returncode,err))
@@ -141,7 +144,7 @@ class SerialFork:
                 print(line, end="")
         except KeyboardInterrupt:
             self.stop_forward()
-            p.stdout.close()
+            ppp.stdout.close()
 
 if __name__ == "__main__":
     # this script should be run as root
