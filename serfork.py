@@ -124,6 +124,7 @@ class SerialFork:
                 '/usr/bin/pppd', 'nodetach', 'noauth', 'local',
                 '%s:%s' % (srcaddr, destaddr), self.pty0name, str(self.baud),
             ], stdout=subprocess.PIPE, universal_newlines=True)
+            print("configuring pppd with addresses %s -> %s" %(srcaddr, destaddr))
 
             if iface is not None:
                 # configure firewall (assume downlink device)
@@ -157,9 +158,16 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--uplink", help="specify if this device is uplink. uplink is the udp server", action="store_true")
     parser.add_argument("-a", "--uaddr", help="uplink udp address (please specify if device is downlink)", default="0.0.0.0")
     parser.add_argument("-p", "--uport", help="uplink udp port", default=21221)
-    parser.add_argument("ppp_src", help="serial link src address for PPPoS")
-    parser.add_argument("ppp_dest", help="serial link dest address for PPPoS")
+    parser.add_argument("-ds", "--dlink_pppsrc", help="serial downlink src address for PPPoS",default="10.2.1.2")
+    parser.add_argument("-us", "--ulink_pppsrc", help="serial uplink src address for PPPoS",default="10.2.1.1")
 
     args = parser.parse_args()
+    src = args.dlink_pppsrc
+    dst = args.ulink_pppsrc
+    if args.uplink:
+        # flip if we're uplink
+        src = args.ulink_pppsrc
+        dst = args.dlink_pppsrc
+
     sf = SerialFork(args.physical, args.uplink, (args.uaddr, args.uport), args.baudrate, args.debug)
-    sf.run_until_interrupt(args.ppp_src, args.ppp_dest, args.interface)
+    sf.run_until_interrupt(src, dst, args.interface)
