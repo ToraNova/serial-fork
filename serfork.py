@@ -115,7 +115,7 @@ class SerialFork:
             print("setup exception has occurred:",e)
             self.fatal = True
 
-    def run_until_interrupt(self, iface=None, srcaddr, destaddr):
+    def run_until_interrupt(self, srcaddr, destaddr, iface=None):
         if self.fatal:
             raise Exception("setup exception was fatal.")
         try:
@@ -159,4 +159,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     sf = SerialFork(args.physical, args.uplink, (args.uaddr, args.uport), args.baudrate, args.debug)
-    sf.run_until_interrupt(argis.interface, args.ppp_src, args.ppp_dest)
+    sf.run_until_interrupt(args.ppp_src, args.ppp_dest, args.interface)
